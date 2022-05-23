@@ -43,12 +43,12 @@ class Orpheus:
                 "separate_tracks_skip_downloaded": True
             },
             "formatting": {
-                "album_format": "{name}{explicit}",
+                "album_format": "{artist}/{name}{explicit} ({release_year}){quality}",
                 "playlist_format": "{name}{explicit}",
-                "track_filename_format": "{track_number}. {name}",
+                "track_filename_format": "{track_number}. {name}{explicit}",
                 "single_full_path_format": "{name}",
                 "enable_zfill": True,
-                "force_album_format": False
+                "force_album_format": True
             },
             "codecs": {
                 "proprietary_codecs": False,
@@ -65,10 +65,10 @@ class Orpheus:
                 "save_synced_lyrics": True
             },
             "covers": {
-                "embed_cover": True,
+                "embed_cover": False,
                 "main_compression": "high",
                 "main_resolution": 1400,
-                "save_external": False,
+                "save_external": True,
                 "external_format": 'png',
                 "external_compression": "low",
                 "external_resolution": 3000,
@@ -88,7 +88,7 @@ class Orpheus:
                 "conversion_keep_original": False,
                 "cover_variance_threshold": 8,
                 "debug_mode": False,
-                "disable_subscription_checks": False,
+                "disable_subscription_checks": True,
                 "enable_undesirable_conversions": False,
                 "ignore_existing_files": False,
                 "ignore_different_artists": True
