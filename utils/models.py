@@ -133,6 +133,7 @@ class ModuleFlags(Flag):
     hidden = auto()
     enable_jwt_system = auto()
     private = auto()
+    uses_data = auto()
 
 
 class ModuleModes(Flag):
@@ -229,6 +230,7 @@ class OrpheusOptions:
 @dataclass
 class ModuleController:
     module_settings: dict
+    data_folder: str
     extensions: dict
     temporary_settings_controller: TemporarySettingsController
     orpheus_options: OrpheusOptions
@@ -252,6 +254,7 @@ class Tags:
     replay_peak: Optional[float] = None
     genres: Optional[list] = None
     release_date: Optional[str] = None  # Format: YYYY-MM-DD
+    label: Optional[str] = None
     extra_tags: Optional[dict] = field(default_factory=dict)
 
 
