@@ -1,6 +1,7 @@
 import logging, os, ffmpeg, sys
 import shutil
 from dataclasses import asdict
+from time import strftime, gmtime
 
 from ffmpeg import Error
 
@@ -8,6 +9,19 @@ from orpheus.tagging import tag_file
 from utils.models import *
 from utils.utils import *
 from utils.exceptions import *
+
+
+def beauty_format_seconds(seconds: int) -> str:
+    time_data = gmtime(seconds)
+
+    time_format = "%Mm:%Ss"
+    # if seconds are higher than 3600s also add the hour format
+    if time_data.tm_hour > 0:
+        time_format = "%Hh:" + time_format
+    # TODO: also add days to time_format if hours > 24?
+
+    # return the formatted time string
+    return strftime(time_format, time_data)
 
 
 class Downloader:
@@ -56,6 +70,7 @@ class Downloader:
         self.print(f'=== Downloading playlist {playlist_info.name} ({playlist_id}) ===', drop_level=1)
         self.print(f'Playlist creator: {playlist_info.creator}' + (f' ({playlist_info.creator_id})' if playlist_info.creator_id else ''))
         if playlist_info.release_year: self.print(f'Playlist creation year: {playlist_info.release_year}')
+        if playlist_info.duration: self.print(f'Duration: {beauty_format_seconds(playlist_info.duration)}')
         number_of_tracks = len(playlist_info.tracks)
         self.print(f'Number of tracks: {number_of_tracks!s}')
         self.print(f'Service: {self.module_settings[self.service_name].service_name}')
@@ -69,7 +84,7 @@ class Downloader:
         
         if playlist_info.cover_url:
             self.print('Downloading playlist cover')
-            download_file(playlist_info.cover_url, f'{playlist_path}Cover.{playlist_info.cover_type.name}')
+            download_file(playlist_info.cover_url, f'{playlist_path}Cover.{playlist_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
         
         if playlist_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
             self.print('Downloading animated playlist cover')
@@ -158,7 +173,7 @@ class Downloader:
     def _download_album_files(self, album_path: str, album_info: AlbumInfo):
         if album_info.cover_url:
             self.print('Downloading album cover')
-            download_file(album_info.cover_url, f'{album_path}Cover.{album_info.cover_type.name}')
+            download_file(album_info.cover_url, f'{album_path}Cover.{album_info.cover_type.name}', artwork_settings=self._get_artwork_settings())
 
         if album_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
             self.print('Downloading animated album cover')
@@ -189,6 +204,7 @@ class Downloader:
             self.print(f'=== Downloading album {album_info.name} ({album_id}) ===', drop_level=1)
             self.print(f'Artist: {album_info.artist} ({album_info.artist_id})')
             if album_info.release_year: self.print(f'Year: {album_info.release_year}')
+            if album_info.duration: self.print(f'Duration: {beauty_format_seconds(album_info.duration)}')
             self.print(f'Number of tracks: {number_of_tracks!s}')
             self.print(f'Service: {self.module_settings[self.service_name].service_name}')
 
@@ -284,6 +300,7 @@ class Downloader:
         if self.download_mode is not DownloadTypeEnum.album and track_info.album: self.print(f'Album: {track_info.album} ({track_info.album_id})')
         if self.download_mode is not DownloadTypeEnum.artist: self.print(f'Artists: {", ".join(track_info.artists)} ({track_info.artist_id})')
         if track_info.release_year: self.print(f'Release year: {track_info.release_year!s}')
+        if track_info.duration: self.print(f'Duration: {beauty_format_seconds(track_info.duration)}')
         if self.download_mode is DownloadTypeEnum.track: self.print(f'Service: {self.module_settings[self.service_name].service_name}')
 
         to_print = 'Codec: ' + codec_data[codec].pretty_name
@@ -410,20 +427,20 @@ class Downloader:
                         if rms < rms_threshold:
                             self.print('Match found below threshold ' + str(rms_threshold))
                             jpg_cover_info: CoverInfo = cover_module.get_track_cover(r.result_id, jpg_cover_options, **r.extra_kwargs)
-                            download_file(jpg_cover_info.url, cover_temp_location)
+                            download_file(jpg_cover_info.url, cover_temp_location, artwork_settings=self._get_artwork_settings(covers_module_name))
                             silentremove(default_temp)
                             if self.global_settings['covers']['save_external']:
                                 ext_cover_info: CoverInfo = cover_module.get_track_cover(r.result_id, ext_cover_options, **r.extra_kwargs)
-                                download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}')
+                                download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}', artwork_settings=self._get_artwork_settings(covers_module_name, is_external=True))
                             break
                 else:
                     self.print('Third-party module could not find cover, using fallback')
                     shutil.move(default_temp, cover_temp_location)
             else:
-                download_file(track_info.cover_url, cover_temp_location)
+                download_file(track_info.cover_url, cover_temp_location, artwork_settings=self._get_artwork_settings())
                 if self.global_settings['covers']['save_external'] and ModuleModes.covers in self.module_settings[self.service_name].module_supported_modes:
                     ext_cover_info: CoverInfo = self.service.get_track_cover(track_id, ext_cover_options, **track_info.cover_extra_kwargs)
-                    download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}')
+                    download_file(ext_cover_info.url, f'{track_location_name}.{ext_cover_info.file_type.name}', artwork_settings=self._get_artwork_settings(is_external=True))
 
         if track_info.animated_cover_url and self.global_settings['covers']['save_animated_cover']:
             self.print('Downloading animated cover')
@@ -598,3 +615,13 @@ class Downloader:
             silentremove(cover_temp_location)
         
         self.print(f'=== Track {track_id} downloaded ===', drop_level=1)
+
+    def _get_artwork_settings(self, module_name = None, is_external = False):
+        if not module_name:
+            module_name = self.service_name
+        return {
+            'should_resize': ModuleFlags.needs_cover_resize in self.module_settings[module_name].flags,
+            'resolution': self.global_settings['covers']['external_resolution'] if is_external else self.global_settings['covers']['main_resolution'],
+            'compression': self.global_settings['covers']['external_compression'] if is_external else self.global_settings['covers']['main_compression'],
+            'format': self.global_settings['covers']['external_format'] if is_external else 'jpg'
+        }
